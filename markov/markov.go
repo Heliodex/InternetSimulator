@@ -7,38 +7,18 @@ import (
 	"time"
 )
 
-func Markov(data []string) (map[string]map[string]int, func(float32) string) {
-	startTime := time.Now()
+var start = "!$START"
+var end = "!$END"
+
+func Markov(data []string) map[string]map[string]int {
 	// Create a Markov chain from a dataset
 
 	chain := make(map[string]map[string]int)
-
-	allWords := strings.Join(data, " ")
-
-	// Get two random unicode characters that aren't in the dataset,
-	// These will be used for start and end markers
-	randChar := func(not string) string {
-		for {
-			r := rune(rand.Intn(65535))
-			if !strings.Contains(allWords, string(r)) && string(r) != not {
-				return string(r)
-			}
-		}
-	}
-
-	start := randChar("\000")
-	end := randChar(start)
-
-	fmt.Println("Done random stuff in", time.Since(startTime))
-	startTime = time.Now()
 
 	startPart := start + " "
 	endPart := " " + end
 
 	wordsArray := strings.Split(startPart+strings.Join(data, endPart+" "+startPart)+endPart, " ")
-
-	fmt.Println("Split strings in", time.Since(startTime))
-	startTime = time.Now()
 
 	for i, word := range wordsArray[:len(wordsArray)-1] {
 		// Add a word to the Markov chain
@@ -48,16 +28,17 @@ func Markov(data []string) (map[string]map[string]int, func(float32) string) {
 		chain[word][wordsArray[i+1]]++
 	}
 
-	fmt.Println("Added words in", time.Since(startTime))
-
 	keys := make([]string, 0, len(chain[start]))
 	for k := range chain[start] {
 		keys = append(keys, k)
 	}
 
-	// Return the chain alongside a function to generate a tweet
-	return chain, func(lengthMultiplier float32) string {
-		startTime = time.Now()
+	return chain
+}
+
+func FromChain(chain map[string]map[string]int) func(float32) string {
+	return func(lengthMultiplier float32) string {
+		startTime := time.Now()
 
 		var words []string
 

@@ -1,55 +1,50 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"strconv"
+	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
 
 func main() {
-	file, err := os.ReadFile("../data/tweets.json")
-	if err != nil {
-		log.Fatalln(err)
+	if len(os.Args)  > 1 && os.Args[1] == "serialise" {
+		Serialise()
+		return
 	}
 
-	var jsonData [][]interface{}
-	err = json.Unmarshal(file, &jsonData)
-	if err != nil {
-		log.Fatalln(err)
+	fmt.Println("Starting server...")
+
+	startTime := time.Now()
+
+	chains := make(map[string]map[string]map[string]int)
+	
+	var wg sync.WaitGroup
+
+	// load chains
+	for _, v := range []string{"chain", "chain0", "chain1"} {
+		go func(v string) {
+			chain := Deserialise(v)
+			chains[v] = chain
+			fmt.Println("Loaded", v)
+			wg.Done()
+		}(v)
 	}
 
-	fmt.Println("Loaded tweets file")
+	// wait for all chains to load
+	wg.Add(3)
+	wg.Wait()
 
-	// tweet[0] is sentiment (0 or 1), tweet[1] is text
-	var s0tweets []string
-	var s1tweets []string
-	var tweets []string
+	fmt.Println("Loaded all chains in", time.Since(startTime))
 
-	for _, tweet := range jsonData {
-		stringTweet := tweet[1].(string)
-		if tweet[0] == float64(0) {
-			s0tweets = append(s0tweets, stringTweet)
-		} else {
-			s1tweets = append(s1tweets, stringTweet)
-		}
-		tweets = append(tweets, stringTweet)
-	}
-
-	fmt.Println("Loaded", len(tweets), "tweets")
-	fmt.Println("Loaded", len(s0tweets), "s0tweets")
-	fmt.Println("Loaded", len(s1tweets), "s1tweets")
-	fmt.Println("Generating Markov chains. This may take a while...")
-
-	_, gen := Markov(tweets)
-	_, gen0 := Markov(s0tweets)
-	_, gen1 := Markov(s1tweets)
-
-
-	fmt.Println("Done! Starting server...")
+	chain, chain0, chain1 := chains["chain"], chains["chain0"], chains["chain1"]
+	
+	gen := FromChain(chain)
+	gen0 := FromChain(chain0)
+	gen1 := FromChain(chain1)
 
 	r := gin.Default()
 	r.GET("/:multi", func(c *gin.Context) {
