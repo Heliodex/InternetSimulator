@@ -1,16 +1,15 @@
 package main
 
 import (
+	"encoding/gob"
 	"encoding/json"
 	"fmt"
 	"log"
 	"os"
 	"sync"
-
-	"encoding/gob"
 )
 
-func Serialise() {
+func loadTweets() [][]interface{} {
 	file, err := os.ReadFile("../data/tweets.json")
 	if err != nil {
 		log.Fatalln(err)
@@ -22,36 +21,38 @@ func Serialise() {
 		log.Fatalln(err)
 	}
 
-	fmt.Println("Loaded tweets file")
+	return jsonData
+}
 
+func Serialise() {
 	// tweet[0] is sentiment (0 or 1), tweet[1] is text
-	var s0tweets []string
-	var s1tweets []string
-	var tweets []string
+	tweetSets := make(map[string][]string)
 
-	for _, tweet := range jsonData {
+	for _, tweet := range loadTweets() {
 		stringTweet := tweet[1].(string)
 		if tweet[0] == float64(0) {
-			s0tweets = append(s0tweets, stringTweet)
+			tweetSets["chain0"] = append(tweetSets["chain0"], stringTweet)
 		} else {
-			s1tweets = append(s1tweets, stringTweet)
+			tweetSets["chain1"] = append(tweetSets["chain1"], stringTweet)
 		}
-		tweets = append(tweets, stringTweet)
+		tweetSets["chain"] = append(tweetSets["chain"], stringTweet)
 	}
+	fmt.Println("Loaded tweets file")
 
-	fmt.Println("Loaded", len(tweets), "tweets")
-	fmt.Println("Loaded", len(s0tweets), "s0tweets")
-	fmt.Println("Loaded", len(s1tweets), "s1tweets")
+	fmt.Println("Loaded", len(tweetSets["chain"]), "tweets")
+	fmt.Println("Loaded", len(tweetSets["chain0"]), "s0tweets")
+	fmt.Println("Loaded", len(tweetSets["chain1"]), "s1tweets")
+
 	fmt.Println("Generating Markov chains. This may take a while...")
 
 	var wg sync.WaitGroup
 
 	// Load chains
-	for _, v := range []string{"chain", "chain0", "chain1"} {
-		go func(v string) {
-			chain := Markov(s0tweets)
+	for k, v := range tweetSets {
+		go func(k string, v []string) {
+			chain := Markov(v)
 
-			f, err := os.Create("../data/" + v + ".gob")
+			f, err := os.Create("../data/" + k + ".gob")
 			if err != nil {
 				log.Fatalln(err)
 			}
@@ -63,7 +64,7 @@ func Serialise() {
 				log.Fatalln(err)
 			}
 			wg.Done()
-		}(v)
+		}(k, v)
 	}
 
 	// Wait for all chains to load

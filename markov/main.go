@@ -11,7 +11,7 @@ import (
 )
 
 func main() {
-	if len(os.Args)  > 1 && os.Args[1] == "serialise" {
+	if len(os.Args) > 1 && os.Args[1] == "serialise" {
 		Serialise()
 		return
 	}
@@ -20,51 +20,48 @@ func main() {
 
 	startTime := time.Now()
 
-	chains := make(map[string]map[string]map[string]int)
-	
+	chains := []string{"chain", "chain0", "chain1"}
+	gens := make(map[string]func(float32) string)
 	var wg sync.WaitGroup
 
 	// load chains
-	for _, v := range []string{"chain", "chain0", "chain1"} {
+	for _, v := range chains {
 		go func(v string) {
 			chain := Deserialise(v)
-			chains[v] = chain
+			gens[v] = FromChain(chain)
 			fmt.Println("Loaded", v)
 			wg.Done()
 		}(v)
 	}
 
 	// wait for all chains to load
-	wg.Add(3)
+	wg.Add(len(chains))
 	wg.Wait()
 
 	fmt.Println("Loaded all chains in", time.Since(startTime))
 
-	chain, chain0, chain1 := chains["chain"], chains["chain0"], chains["chain1"]
-	
-	gen := FromChain(chain)
-	gen0 := FromChain(chain0)
-	gen1 := FromChain(chain1)
-
 	r := gin.Default()
-	r.GET("/:multi", func(c *gin.Context) {
+	r.GET("/:chain", func(c *gin.Context) {
+		chainName := c.Param("chain")
+		gen, chainFound := gens[chainName]
+		if !chainFound {
+			c.String(404, "Chain not found")
+			return
+		}
+		c.String(200, gen(1))
+	})
+	r.GET("/:chain/:multi", func(c *gin.Context) {
+		chainName := c.Param("chain")
 		multi, ok := strconv.ParseFloat(c.Param("multi"), 32)
 		if ok != nil {
 			multi = 1
+		}
+		gen, chainFound := gens[chainName]
+		if !chainFound {
+			c.String(404, "Chain not found")
+			return
 		}
 		c.String(200, gen(float32(multi)))
-	})
-	r.GET("/:multi/:s", func(c *gin.Context) {
-		multi, ok := strconv.ParseFloat(c.Param("multi"), 32)
-		if ok != nil {
-			multi = 1
-		}
-		sentiment := c.Param("s")
-		if sentiment == "1" {
-			c.String(200, gen1(float32(multi)))
-		} else {
-			c.String(200, gen0(float32(multi)))
-		}
 	})
 	r.Run()
 }

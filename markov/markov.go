@@ -7,8 +7,10 @@ import (
 	"time"
 )
 
-var start = "!$START"
-var end = "!$END"
+var (
+	start = "!$START"
+	end   = "!$END"
+)
 
 func Markov(data []string) map[string]map[string]int {
 	// Create a Markov chain from a dataset
@@ -20,6 +22,8 @@ func Markov(data []string) map[string]map[string]int {
 
 	wordsArray := strings.Split(startPart+strings.Join(data, endPart+" "+startPart)+endPart, " ")
 
+	startTime := time.Now()
+
 	for i, word := range wordsArray[:len(wordsArray)-1] {
 		// Add a word to the Markov chain
 		if chain[word] == nil {
@@ -27,6 +31,8 @@ func Markov(data []string) map[string]map[string]int {
 		}
 		chain[word][wordsArray[i+1]]++
 	}
+
+	fmt.Println("Added words to chain in", time.Since(startTime))
 
 	keys := make([]string, 0, len(chain[start]))
 	for k := range chain[start] {
@@ -73,7 +79,7 @@ func FromChain(chain map[string]map[string]int) func(float32) string {
 			for currentWord == end {
 				// generate random number, affected by lengthMultiplier
 				rand := rand.Intn(int(100 * lengthMultiplier))
-				if rand < 100 {
+				if rand < 100 || len(nextWordsTable) == 1 {
 					break
 				}
 				currentWord = weightedRandom(nextWordsTable)
